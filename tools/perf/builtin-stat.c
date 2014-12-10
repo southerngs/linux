@@ -1446,7 +1446,10 @@ static void print_stat(int argc, const char **argv)
 					avg_stats(&walltime_nsecs_stats));
 		}
 		fprintf(output, "\n\n");
-	}
+	} else
+    fprintf(output,"%f%sseconds-time-elapsed\n",
+        avg_stats(&walltime_nsecs_stats)/1e9,
+        csv_sep);
 }
 
 static volatile int signr = -1;
