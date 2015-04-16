@@ -258,7 +258,6 @@ struct scsi_host_template qla2xxx_driver_template = {
 	.scan_finished		= qla2xxx_scan_finished,
 	.scan_start		= qla2xxx_scan_start,
 	.change_queue_depth	= scsi_change_queue_depth,
-	.change_queue_type	= scsi_change_queue_type,
 	.this_id		= -1,
 	.cmd_per_lun		= 3,
 	.use_clustering		= ENABLE_CLUSTERING,
@@ -447,11 +446,11 @@ static int qla25xx_setup_mode(struct scsi_qla_host *vha)
 		}
 		ha->flags.cpu_affinity_enabled = 1;
 		ql_dbg(ql_dbg_multiq, vha, 0xc007,
-		    "CPU affinity mode enalbed, "
+		    "CPU affinity mode enabled, "
 		    "no. of response queues:%d no. of request queues:%d.\n",
 		    ha->max_rsp_queues, ha->max_req_queues);
 		ql_dbg(ql_dbg_init, vha, 0x00e9,
-		    "CPU affinity mode enalbed, "
+		    "CPU affinity mode enabled, "
 		    "no. of response queues:%d no. of request queues:%d.\n",
 		    ha->max_rsp_queues, ha->max_req_queues);
 	}
@@ -735,7 +734,9 @@ qla2xxx_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 	 * Return target busy if we've received a non-zero retry_delay_timer
 	 * in a FCP_RSP.
 	 */
-	if (time_after(jiffies, fcport->retry_delay_timestamp))
+	if (fcport->retry_delay_timestamp == 0) {
+		/* retry delay not set */
+	} else if (time_after(jiffies, fcport->retry_delay_timestamp))
 		fcport->retry_delay_timestamp = 0;
 	else
 		goto qc24_target_busy;
@@ -4101,7 +4102,7 @@ qla83xx_schedule_work(scsi_qla_host_t *base_vha, int work_code)
 		break;
 	default:
 		ql_log(ql_log_warn, base_vha, 0xb05f,
-		    "Unknow work-code=0x%x.\n", work_code);
+		    "Unknown work-code=0x%x.\n", work_code);
 	}
 
 	return;
@@ -4701,7 +4702,7 @@ qla83xx_idc_state_handler(scsi_qla_host_t *base_vha)
 			break;
 		default:
 			ql_log(ql_log_warn, base_vha, 0xb071,
-			    "Unknow Device State: %x.\n", dev_state);
+			    "Unknown Device State: %x.\n", dev_state);
 			qla83xx_idc_unlock(base_vha, 0);
 			qla8xxx_dev_failed_handler(base_vha);
 			rval = QLA_FUNCTION_FAILED;

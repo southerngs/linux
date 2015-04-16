@@ -208,7 +208,7 @@ static unsigned long iommu_range_alloc(struct device *dev,
 	 * We don't need to disable preemption here because any CPU can
 	 * safely use any IOMMU pool.
 	 */
-	pool_nr = __raw_get_cpu_var(iommu_pool_hash) & (tbl->nr_pools - 1);
+	pool_nr = __this_cpu_read(iommu_pool_hash) & (tbl->nr_pools - 1);
 
 	if (largealloc)
 		pool = &(tbl->large_pool);
@@ -1175,4 +1175,30 @@ void iommu_del_device(struct device *dev)
 }
 EXPORT_SYMBOL_GPL(iommu_del_device);
 
+static int tce_iommu_bus_notifier(struct notifier_block *nb,
+                unsigned long action, void *data)
+{
+        struct device *dev = data;
+
+        switch (action) {
+        case BUS_NOTIFY_ADD_DEVICE:
+                return iommu_add_device(dev);
+        case BUS_NOTIFY_DEL_DEVICE:
+                if (dev->iommu_group)
+                        iommu_del_device(dev);
+                return 0;
+        default:
+                return 0;
+        }
+}
+
+static struct notifier_block tce_iommu_bus_nb = {
+        .notifier_call = tce_iommu_bus_notifier,
+};
+
+int __init tce_iommu_bus_notifier_init(void)
+{
+        bus_register_notifier(&pci_bus_type, &tce_iommu_bus_nb);
+        return 0;
+}
 #endif /* CONFIG_IOMMU_API */

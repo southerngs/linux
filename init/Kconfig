@@ -394,6 +394,7 @@ endchoice
 
 config BSD_PROCESS_ACCT
 	bool "BSD Process Accounting"
+	depends on MULTIUSER
 	help
 	  If you say Y here, a user level program will be able to instruct the
 	  kernel (via a special system call) to write process accounting
@@ -420,6 +421,7 @@ config BSD_PROCESS_ACCT_V3
 config TASKSTATS
 	bool "Export task/process statistics through netlink"
 	depends on NET
+	depends on MULTIUSER
 	default n
 	help
 	  Export selected statistics for tasks/processes through the
@@ -470,7 +472,6 @@ choice
 config TREE_RCU
 	bool "Tree-based hierarchical RCU"
 	depends on !PREEMPT && SMP
-	select IRQ_WORK
 	help
 	  This option selects the RCU implementation that is
 	  designed for very large SMP system with hundreds or
@@ -480,7 +481,6 @@ config TREE_RCU
 config PREEMPT_RCU
 	bool "Preemptible tree-based hierarchical RCU"
 	depends on PREEMPT
-	select IRQ_WORK
 	help
 	  This option selects the RCU implementation that is
 	  designed for very large SMP systems with hundreds or
@@ -501,9 +501,17 @@ config TINY_RCU
 
 endchoice
 
+config SRCU
+	bool
+	help
+	  This option selects the sleepable version of RCU. This version
+	  permits arbitrary sleeping or blocking within RCU read-side critical
+	  sections.
+
 config TASKS_RCU
 	bool "Task_based RCU implementation using voluntary context switch"
 	default n
+	select SRCU
 	help
 	  This option enables a task-based RCU implementation that uses
 	  only voluntary context switch (not preemption!), idle, and
@@ -668,9 +676,10 @@ config RCU_BOOST
 
 config RCU_KTHREAD_PRIO
 	int "Real-time priority to use for RCU worker threads"
-	range 1 99
-	depends on RCU_BOOST
-	default 1
+	range 1 99 if RCU_BOOST
+	range 0 99 if !RCU_BOOST
+	default 1 if RCU_BOOST
+	default 0 if !RCU_BOOST
 	help
 	  This option specifies the SCHED_FIFO priority value that will be
 	  assigned to the rcuc/n and rcub/n threads and is also the value
@@ -784,6 +793,19 @@ config RCU_NOCB_CPU_ALL
 
 endchoice
 
+config RCU_EXPEDITE_BOOT
+	bool
+	default n
+	help
+	  This option enables expedited grace periods at boot time,
+	  as if rcu_expedite_gp() had been invoked early in boot.
+	  The corresponding rcu_unexpedite_gp() is invoked from
+	  rcu_end_inkernel_boot(), which is intended to be invoked
+	  at the end of the kernel-only boot sequence, just before
+	  init is exec'ed.
+
+	  Accept the default if unsure.
+
 endmenu # "RCU Subsystem"
 
 config BUILD_BIN2C
@@ -893,14 +915,6 @@ config ARCH_SUPPORTS_INT128
 config ARCH_WANT_NUMA_VARIABLE_LOCALITY
 	bool
 
-config NUMA_BALANCING_DEFAULT_ENABLED
-	bool "Automatically enable NUMA aware memory/task placement"
-	default y
-	depends on NUMA_BALANCING
-	help
-	  If set, automatic NUMA balancing will be enabled if running on a NUMA
-	  machine.
-
 config NUMA_BALANCING
 	bool "Memory placement aware NUMA scheduler"
 	depends on ARCH_SUPPORTS_NUMA_BALANCING
@@ -913,8 +927,16 @@ config NUMA_BALANCING
 
 	  This system will be inactive on UMA systems.
 
+config NUMA_BALANCING_DEFAULT_ENABLED
+	bool "Automatically enable NUMA aware memory/task placement"
+	default y
+	depends on NUMA_BALANCING
+	help
+	  If set, automatic NUMA balancing will be enabled if running on a NUMA
+	  machine.
+
 menuconfig CGROUPS
-	boolean "Control Group support"
+	bool "Control Group support"
 	select KERNFS
 	help
 	  This option adds support for grouping sets of processes together, for
@@ -972,31 +994,16 @@ config CGROUP_CPUACCT
 	  Provides a simple Resource Controller for monitoring the
 	  total CPU consumed by the tasks in a cgroup.
 
-config RESOURCE_COUNTERS
-	bool "Resource counters"
-	help
-	  This option enables controller independent resource accounting
-	  infrastructure that works with cgroups.
+config PAGE_COUNTER
+       bool
 
 config MEMCG
 	bool "Memory Resource Controller for Control Groups"
-	depends on RESOURCE_COUNTERS
+	select PAGE_COUNTER
 	select EVENTFD
 	help
 	  Provides a memory resource controller that manages both anonymous
 	  memory and page cache. (See Documentation/cgroups/memory.txt)
-
-	  Note that setting this option increases fixed memory overhead
-	  associated with each page of memory in the system. By this,
-	  8(16)bytes/PAGE_SIZE on 32(64)bit system will be occupied by memory
-	  usage tracking struct at boot. Total amount of this is printed out
-	  at boot.
-
-	  Only enable when you're ok with these trade offs and really
-	  sure you need the memory resource controller. Even when you enable
-	  this, you can set "cgroup_disable=memory" at your boot option to
-	  disable memory resource controller and you can avoid overheads.
-	  (and lose benefits of memory resource controller)
 
 config MEMCG_SWAP
 	bool "Memory Resource Controller Swap Extension"
@@ -1048,7 +1055,8 @@ config MEMCG_KMEM
 
 config CGROUP_HUGETLB
 	bool "HugeTLB Resource Controller for Control Groups"
-	depends on RESOURCE_COUNTERS && HUGETLB_PAGE
+	depends on HUGETLB_PAGE
+	select PAGE_COUNTER
 	default n
 	help
 	  Provides a cgroup Resource Controller for HugeTLB pages.
@@ -1154,6 +1162,7 @@ config CHECKPOINT_RESTORE
 
 menuconfig NAMESPACES
 	bool "Namespaces support" if EXPERT
+	depends on MULTIUSER
 	default !EXPERT
 	help
 	  Provides the way to make tasks work with different objects using
@@ -1297,8 +1306,8 @@ endif
 config CC_OPTIMIZE_FOR_SIZE
 	bool "Optimize for size"
 	help
-	  Enabling this option will pass "-Os" instead of "-O2" to gcc
-	  resulting in a smaller kernel.
+	  Enabling this option will pass "-Os" instead of "-O2" to
+	  your compiler resulting in a smaller kernel.
 
 	  If unsure, say N.
 
@@ -1350,10 +1359,24 @@ menuconfig EXPERT
 
 config UID16
 	bool "Enable 16-bit UID system calls" if EXPERT
-	depends on HAVE_UID16
+	depends on HAVE_UID16 && MULTIUSER
 	default y
 	help
 	  This enables the legacy 16-bit UID syscall wrappers.
+
+config MULTIUSER
+	bool "Multiple users, groups and capabilities support" if EXPERT
+	default y
+	help
+	  This option enables support for non-root users, groups and
+	  capabilities.
+
+	  If you say N here, all processes will run with UID 0, GID 0, and all
+	  possible capabilities.  Saying N here also compiles out support for
+	  system calls related to UIDs, GIDs, and capabilities, such as setuid,
+	  setgid, and capset.
+
+	  If unsure, say Y here.
 
 config SGETMASK_SYSCALL
 	bool "sgetmask/ssetmask syscalls support" if EXPERT
@@ -1520,7 +1543,7 @@ config EVENTFD
 
 # syscall, maps, verifier
 config BPF_SYSCALL
-	bool "Enable bpf() system call" if EXPERT
+	bool "Enable bpf() system call"
 	select ANON_INODES
 	select BPF
 	default n
@@ -1593,6 +1616,7 @@ config PERF_EVENTS
 	depends on HAVE_PERF_EVENTS
 	select ANON_INODES
 	select IRQ_WORK
+	select SRCU
 	help
 	  Enable kernel support for various performance events provided
 	  by software and hardware.
@@ -1768,7 +1792,7 @@ config SLABINFO
 	default y
 
 config RT_MUTEXES
-	boolean
+	bool
 
 config BASE_SMALL
 	int

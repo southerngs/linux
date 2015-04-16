@@ -684,7 +684,6 @@ static const struct of_device_id sysmmu_of_match[] __initconst = {
 static struct platform_driver exynos_sysmmu_driver __refdata = {
 	.probe	= exynos_sysmmu_probe,
 	.driver	= {
-		.owner		= THIS_MODULE,
 		.name		= "exynos-sysmmu",
 		.of_match_table	= sysmmu_of_match,
 	}
@@ -1187,7 +1186,14 @@ static const struct iommu_ops exynos_iommu_ops = {
 
 static int __init exynos_iommu_init(void)
 {
+	struct device_node *np;
 	int ret;
+
+	np = of_find_matching_node(NULL, sysmmu_of_match);
+	if (!np)
+		return 0;
+
+	of_node_put(np);
 
 	lv2table_kmem_cache = kmem_cache_create("exynos-iommu-lv2table",
 				LV2TABLE_SIZE, LV2TABLE_SIZE, 0, NULL);

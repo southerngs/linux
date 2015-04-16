@@ -11,6 +11,7 @@ enum perf_call_graph_mode {
 	CALLCHAIN_NONE,
 	CALLCHAIN_FP,
 	CALLCHAIN_DWARF,
+	CALLCHAIN_LBR,
 	CALLCHAIN_MAX
 };
 
@@ -197,5 +198,7 @@ static inline int arch_skip_callchain_idx(struct thread *thread __maybe_unused,
 
 char *callchain_list__sym_name(struct callchain_list *cl,
 			       char *bf, size_t bfsize, bool show_dso);
+
+void free_callchain(struct callchain_root *root);
 
 #endif	/* __PERF_CALLCHAIN_H */

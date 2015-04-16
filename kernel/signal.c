@@ -2501,7 +2501,7 @@ EXPORT_SYMBOL(unblock_all_signals);
  */
 SYSCALL_DEFINE0(restart_syscall)
 {
-	struct restart_block *restart = &current_thread_info()->restart_block;
+	struct restart_block *restart = &current->restart_block;
 	return restart->fn(restart);
 }
 
@@ -2755,6 +2755,10 @@ int copy_siginfo_to_user(siginfo_t __user *to, const siginfo_t *from)
 		 */
 		if (from->si_code == BUS_MCEERR_AR || from->si_code == BUS_MCEERR_AO)
 			err |= __put_user(from->si_addr_lsb, &to->si_addr_lsb);
+#endif
+#ifdef SEGV_BNDERR
+		err |= __put_user(from->si_lower, &to->si_lower);
+		err |= __put_user(from->si_upper, &to->si_upper);
 #endif
 		break;
 	case __SI_CHLD:
@@ -3546,7 +3550,7 @@ SYSCALL_DEFINE2(signal, int, sig, __sighandler_t, handler)
 SYSCALL_DEFINE0(pause)
 {
 	while (!signal_pending(current)) {
-		current->state = TASK_INTERRUPTIBLE;
+		__set_current_state(TASK_INTERRUPTIBLE);
 		schedule();
 	}
 	return -ERESTARTNOHAND;
@@ -3559,7 +3563,7 @@ int sigsuspend(sigset_t *set)
 	current->saved_sigmask = current->blocked;
 	set_current_blocked(set);
 
-	current->state = TASK_INTERRUPTIBLE;
+	__set_current_state(TASK_INTERRUPTIBLE);
 	schedule();
 	set_restore_sigmask();
 	return -ERESTARTNOHAND;

@@ -77,7 +77,7 @@ int parse_callchain_record_opt(const char *arg)
 				ret = 0;
 			} else
 				pr_err("callchain: No more arguments "
-				       "needed for -g fp\n");
+				       "needed for --call-graph fp\n");
 			break;
 
 #ifdef HAVE_DWARF_UNWIND_SUPPORT
@@ -97,6 +97,14 @@ int parse_callchain_record_opt(const char *arg)
 				callchain_param.dump_size = size;
 			}
 #endif /* HAVE_DWARF_UNWIND_SUPPORT */
+		} else if (!strncmp(name, "lbr", sizeof("lbr"))) {
+			if (!strtok_r(NULL, ",", &saveptr)) {
+				callchain_param.record_mode = CALLCHAIN_LBR;
+				ret = 0;
+			} else
+				pr_err("callchain: No more arguments "
+					"needed for --call-graph lbr\n");
+			break;
 		} else {
 			pr_err("callchain: Unknown --call-graph option "
 			       "value: %s\n", arg);
@@ -840,4 +848,34 @@ char *callchain_list__sym_name(struct callchain_list *cl,
 			  "unknown");
 
 	return bf;
+}
+
+static void free_callchain_node(struct callchain_node *node)
+{
+	struct callchain_list *list, *tmp;
+	struct callchain_node *child;
+	struct rb_node *n;
+
+	list_for_each_entry_safe(list, tmp, &node->val, list) {
+		list_del(&list->list);
+		free(list);
+	}
+
+	n = rb_first(&node->rb_root_in);
+	while (n) {
+		child = container_of(n, struct callchain_node, rb_node_in);
+		n = rb_next(n);
+		rb_erase(&child->rb_node_in, &node->rb_root_in);
+
+		free_callchain_node(child);
+		free(child);
+	}
+}
+
+void free_callchain(struct callchain_root *root)
+{
+	if (!symbol_conf.use_callchain)
+		return;
+
+	free_callchain_node(&root->node);
 }

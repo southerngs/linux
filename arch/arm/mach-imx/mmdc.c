@@ -68,7 +68,7 @@ int imx_mmdc_get_ddr_type(void)
 	return ddr_type;
 }
 
-static struct of_device_id imx_mmdc_dt_ids[] = {
+static const struct of_device_id imx_mmdc_dt_ids[] = {
 	{ .compatible = "fsl,imx6q-mmdc", },
 	{ /* sentinel */ }
 };
@@ -76,7 +76,6 @@ static struct of_device_id imx_mmdc_dt_ids[] = {
 static struct platform_driver imx_mmdc_driver = {
 	.driver		= {
 		.name	= "imx-mmdc",
-		.owner	= THIS_MODULE,
 		.of_match_table = imx_mmdc_dt_ids,
 	},
 	.probe		= imx_mmdc_probe,
